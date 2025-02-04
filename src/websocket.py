@@ -7,7 +7,7 @@ import hashlib
 import requests
 import websockets
 
-import api_objects
+import api_objects as api_objects
 from util import Style, styled, get_input
 # ------------------------------
 # HTTP Authentication Functions
