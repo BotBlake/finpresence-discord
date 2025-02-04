@@ -7,6 +7,8 @@ import hashlib
 import requests
 import websockets
 
+import api_objects
+from util import Style, styled, get_input
 # ------------------------------
 # HTTP Authentication Functions
 # ------------------------------
@@ -48,10 +50,16 @@ def get_public_users(base_url):
     """
     Get all public users from the Jellyfin server.
     """
+    public_users = []
     url = urllib.parse.urljoin(base_url, "/Users/Public")
     response = requests.get(url)
-    response.raise_for_status()  # Raise an error if the request failed
-    return response.json()
+    if not response.ok:
+        print(f"ERROR: Server returned {response.status_code}")
+        exit()
+    user_response = response.json()
+    for user in user_response:
+        public_users.append(api_objects.User(user))
+    return public_users
 
 
 def login_user(base_url, username, password, client, version, device, deviceid=None):
@@ -80,7 +88,7 @@ def login_user(base_url, username, password, client, version, device, deviceid=N
     response = requests.post(url, json=payload, headers=headers)
     response.raise_for_status()
     data = response.json()
-
+    logged_in_user = api_objects.User(data.get("User"))
     # Expect the returned JSON to contain an access token under "AccessToken".
     token = data.get("AccessToken")
     if not token:
@@ -90,7 +98,7 @@ def login_user(base_url, username, password, client, version, device, deviceid=N
     final_auth_header = build_auth_header(
         token=token, client=client, version=version, device=device, deviceid=deviceid
     )
-    return final_auth_header, data
+    return final_auth_header, logged_in_user
 
 
 def login_via_api_key(api_key, client, version, device, username, deviceid=None):
@@ -193,50 +201,76 @@ async def open_websocket_connection(base_url: str, auth_header: str):
 
 def main():
     # --- Configuration ---
-    base_url = "MyDomain"  # Replace with your Jellyfin server URL.
+    server_url = input("Enter your Server URL: ")
     client = "BlakeFlix"
     version = "1.0"
     device = "CLI Service"
+    print()
 
-    # --- 1. Get all public users ---
-    try:
-        users = get_public_users(base_url)
-        print("Public Users:")
-        print(users)
-    except Exception as e:
-        print(f"Error fetching public users: {e}")
+    # --- 1. Build Login Menu ---
+    valid_inputs = ["-2", "-1"]
+    print("Authenticate via:")
+    print("[-2] " + styled("API-Key", [Style.BOLD]))
+    print("[-1] " + styled("Manual Login", [Style.BOLD]))
+    public_users = get_public_users(server_url)
 
-    # --- 2. Login as User (Password) ---
-    username = "Username"  # Replace with a valid username
-    password = "CoolPassword"  # Replace with the correct password
-    try:
-        auth_header, auth_response = login_user(
-            base_url, username, password, client, version, device
+    if len(public_users) > 0:
+        print("Or Log-In as:")
+        for i, user in enumerate(public_users):
+            valid_inputs.append(str(i))
+            print(f"[{i}] {user.name}")
+    print()
+    selection = get_input(
+        message="Please Select", default="-2", valid_inputs=valid_inputs
+    )
+
+    auth_header = None
+    user = None
+
+    # --- Auth via API-Token
+    if selection == "-2":
+        api_key = input("APIKEY: ")
+        username = "apikey_login"  # Username for deviceid
+        auth_header = login_via_api_key(api_key, client, version, device, username)
+        print("\nAuthenticated using API key:")
+        print("Authorization Header:")
+        print(auth_header)
+
+        # ToDo: Select User/s to track Activity
+
+    # --- Manual Login
+    if selection == "-1":
+        username = input("Username: ")
+        password = input("Password: ")
+        auth_header, user = login_user(
+            server_url, username, password, client, version, device
         )
         print("\nAuthenticated using username/password:")
         print("Final Authorization Header:")
         print(auth_header)
         print("Authentication Response:")
-        print(auth_response)
-    except Exception as e:
-        print(f"Error logging in as user: {e}")
-        return
+        print(f'Logged in as "{user.name}"')
 
-    # --- 3. Alternatively: Login Via API Key ---
-    # Uncomment below if you wish to login via API Key instead.
-    # api_key = "APIKEY"  # Replace with your actual API key
-    # try:
-    #     auth_header = login_via_api_key(api_key, client, version, device, username)
-    #     print("\nAuthenticated using API key:")
-    #     print("Authorization Header:")
-    #     print(auth_header)
-    # except Exception as e:
-    #     print(f"Error logging in via API key: {e}")
-    #     return
+    # --- User Login
+    else:
+        user = public_users[int(selection)]
+        username = user.name
+        # ToDo: Get QuickConnect here
+        password = input(f"Password for {user.name}: ")
+        auth_header, user = login_user(
+            server_url, username, password, client, version, device
+        )
+        print("\nAuthenticated using username/password:")
+        print("Final Authorization Header:")
+        print(auth_header)
+        print("Authentication Response:")
+        print(f'Logged in as "{user.name}"')
 
     # --- 4. Open a WebSocket connection and wait for events ---
     # Since websockets uses asyncio, we need to run our async function.
-    asyncio.run(open_websocket_connection(base_url, auth_header))
+    print()
+    print("Starting Websocket Service...")
+    asyncio.run(open_websocket_connection(server_url, auth_header))
 
 
 if __name__ == "__main__":
