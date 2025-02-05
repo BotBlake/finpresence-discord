@@ -2,7 +2,6 @@ import urllib.parse
 import requests
 import hashlib
 import api_objects
-import platform
 import websockets
 import ssl
 import json
@@ -29,12 +28,12 @@ class Config:
         path = parsed.path.rstrip("/") + "/websocket"
         ws_url = urllib.parse.urlunparse((ws_scheme, parsed.netloc, path, "", "", ""))
         return ws_url
-    
+
     def generate_deviceid(self, variable: str | None = "default") -> str:
         username_hash = hashlib.sha256(variable.encode("utf-8")).hexdigest()[:8]
         return f"{self.client}-{self.device}-{username_hash}"
-    
-    def update_deviceid(self, variable:str) -> None:
+
+    def update_deviceid(self, variable: str) -> None:
         self.deviceid = self.generate_deviceid(variable=variable)
 
 
@@ -42,7 +41,7 @@ class Config:
 class Public:
     def __init__(self, sdk):
         self.sdk = sdk
-    
+
     def get_users(self):
         url = urllib.parse.urljoin(self.sdk.config.server_url, "/Users/Public")
         response = requests.get(url)
@@ -50,10 +49,12 @@ class Public:
             raise Exception(f"ERROR: Server returned {response.status_code}")
         return [api_objects.User(user) for user in response.json()]
 
+
 # Authenticate to Jellyfin Server
 class Auth:
     def __init__(self, sdk):
         self.sdk = sdk
+
     def header(self, token: str | None = None) -> str:
         """
         Build a properly encoded Jellyfin Authorization header.
@@ -66,7 +67,7 @@ class Auth:
         params = {}
         if token is not None:
             params["Token"] = token
-        
+
         params["Client"] = self.sdk.config.client
         params["Version"] = self.sdk.config.version
         params["Device"] = self.sdk.config.device
@@ -79,6 +80,7 @@ class Auth:
             header_parts.append(f'{key}="{encoded_value}"')
         auth_header = "MediaBrowser " + ", ".join(header_parts)
         return auth_header
+
     def login_user(self, username, password):
         """
         Authenticate to the Jellyfin server using username and password.
@@ -87,13 +89,13 @@ class Auth:
         On success, extracts the access token and builds the final auth header.
         Returns a tuple: (final authorization header string, full response JSON)
         """
-        url = urllib.parse.urljoin(self.sdk.config.server_url, "/Users/AuthenticateByName")
+        url = urllib.parse.urljoin(
+            self.sdk.config.server_url, "/Users/AuthenticateByName"
+        )
         self.sdk.config.update_deviceid(username)
 
         # Build the initial header without token, including client information.
-        headers = {
-            "Authorization": self.header()
-        }
+        headers = {"Authorization": self.header()}
 
         payload = {"Username": username, "Pw": password}
         response = requests.post(url, json=payload, headers=headers)
@@ -106,6 +108,7 @@ class Auth:
             raise ValueError("Authentication response did not contain an access token.")
 
         return token, logged_in_user
+
     def login_api_key(self, api_key: str) -> str:
         """
         Authenticate by building the authorization header using an API key.
@@ -115,12 +118,14 @@ class Auth:
         self.sdk.config.update_deviceid("apikey")
         return api_key
 
+
 # Features of the API
 class SDK:
     def __init__(self, server_url: str, client: str, version: str, device: str):
         self.config = Config(server_url, client, version, device)
         self.auth = Auth(self)
         self.public = Public(self)
+
     async def open_websocket_connection(self, access_token: str):
         """
         Open a websocket connection to the Jellyfin server, subscribe to events,

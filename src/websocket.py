@@ -11,7 +11,9 @@ def main():
     client = "BlakeFlix"
     version = "1.0"
     device = "CLI Service"
-    jellyfin = jellyfin_sdk.SDK(server_url=server_url, client=client, version=version, device=device)
+    jellyfin = jellyfin_sdk.SDK(
+        server_url=server_url, client=client, version=version, device=device
+    )
     print()
 
     # --- 1. Build Login Menu ---
@@ -45,7 +47,9 @@ def main():
     if selection == "-1":
         username = input("Username: ")
         password = getpass.getpass("Password: ")
-        access_token, user = jellyfin.auth.login_user(username=username, password=password)
+        access_token, user = jellyfin.auth.login_user(
+            username=username, password=password
+        )
         print(f'Logged in as "{user.name}"')
         print(f"Last Login {user.last_login_date}")
 
@@ -55,7 +59,9 @@ def main():
         username = user.name
         # ToDo: Get QuickConnect here
         password = getpass.getpass(f"Password for {user.name}: ")
-        access_token, user = jellyfin.auth.login_user(username=username, password=password)
+        access_token, user = jellyfin.auth.login_user(
+            username=username, password=password
+        )
         print(f'Logged in as "{user.name}"')
         print(f"Last Login {user.last_login_date}")
 
