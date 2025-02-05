@@ -195,6 +195,18 @@ class SDK:
         self.config = Config(server_url, client, version, device)
         self.auth = Auth(self)
         self.public = Public(self)
+        self.user = self.User(self)
+
+    class User:
+        def __init__(self, sdk):
+            self.sdk = sdk
+        def get(self, access_token):
+            url = urllib.parse.urljoin(self.sdk.config.server_url, "/Users")
+            headers = {"Authorization": self.sdk.auth.header(token=access_token)}
+            response = requests.get(url, headers=headers)
+            return [api_objects.User(user) for user in response.json()]
+
+            
 
     async def open_websocket_connection(self, access_token: str):
         """
@@ -202,6 +214,7 @@ class SDK:
         and print received messages.
         """
         ws_url = self.config.ws_url
+
         print("Connecting to WebSocket URL:", ws_url)
 
         # Setup SSL context if needed (for wss:// connections)

@@ -42,7 +42,15 @@ def main():
         api_key = getpass.getpass("APIKEY: ")
         access_token = jellyfin.auth.login_api_key(api_key=api_key)
 
-        # ToDo: Select User/s to track Activity
+        users = jellyfin.user.get(access_token=access_token)
+        for i, user in enumerate(users):
+            print(f"[{i}] {user.name}")
+        valid_inputs = list(range(len(users)))
+        print()
+        selection = get_input(
+            message="Please Select", valid_inputs=valid_inputs
+        )
+        user = users[int(selection)]
 
     # --- Manual Login
     elif selection == "-2":
