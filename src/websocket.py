@@ -17,10 +17,11 @@ def main():
     print()
 
     # --- 1. Build Login Menu ---
-    valid_inputs = ["-2", "-1"]
+    valid_inputs = ["-3", "-2", "-1"]
     print("Authenticate via:")
-    print("[-2] " + styled("API-Key", [Style.BOLD]))
-    print("[-1] " + styled("Manual Login", [Style.BOLD]))
+    print("[-3] " + styled("API-Key", [Style.BOLD]))
+    print("[-2] " + styled("Manual Login", [Style.BOLD]))
+    print("[-1] " + styled("Quick Connect", [Style.BOLD]))
     public_users = jellyfin.public.get_users()
 
     if len(public_users) > 0:
@@ -37,19 +38,28 @@ def main():
     user = None
 
     # --- Auth via API-Token
-    if selection == "-2":
+    if selection == "-3":
         api_key = getpass.getpass("APIKEY: ")
         access_token = jellyfin.auth.login_api_key(api_key=api_key)
 
         # ToDo: Select User/s to track Activity
 
     # --- Manual Login
-    if selection == "-1":
+    elif selection == "-2":
         username = input("Username: ")
         password = getpass.getpass("Password: ")
         access_token, user = jellyfin.auth.login_user(
             username=username, password=password
         )
+        print(f'Logged in as "{user.name}"')
+        print(f"Last Login {user.last_login_date}")
+
+    # --- Quick Connect
+    elif selection == "-1":
+        code = jellyfin.auth.quick_connect.initiate()
+        print(f"Use QuickConnect Code [{code}]")
+        jellyfin.auth.quick_connect.auto_refresh_state()
+        access_token, user = jellyfin.auth.quick_connect.login()
         print(f'Logged in as "{user.name}"')
         print(f"Last Login {user.last_login_date}")
 

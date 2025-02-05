@@ -5,6 +5,7 @@ import api_objects
 import websockets
 import ssl
 import json
+import time
 
 
 class Config:
@@ -54,6 +55,7 @@ class Public:
 class Auth:
     def __init__(self, sdk):
         self.sdk = sdk
+        self.quick_connect = self.QuickConnect(self)
 
     def header(self, token: str | None = None) -> str:
         """
@@ -117,6 +119,74 @@ class Auth:
         """
         self.sdk.config.update_deviceid("apikey")
         return api_key
+
+    class QuickConnect:
+        def __init__(self, auth):
+            self.auth = auth
+            self.sdk = auth.sdk
+            self.secret = None
+
+        def initiate(self) -> str:
+            url = urllib.parse.urljoin(
+                self.sdk.config.server_url, "/QuickConnect/Initiate"
+            )
+            headers = {"Authorization": self.auth.header()}
+            response = requests.post(url, headers=headers)
+            if not response.ok:
+                print("QuickConnect Error")
+                exit()
+            data = response.json()
+            self.secret = data.get("Secret", "")
+            return data.get("Code", "")
+
+        def refresh_state(self):
+            url = urllib.parse.urljoin(
+                self.sdk.config.server_url,
+                f"/QuickConnect/Connect?secret={self.secret}",
+            )
+            response = requests.get(url)
+            data = response.json()
+            authorized = bool(data.get("Authenticated", False))
+            return authorized
+
+        def auto_refresh_state(self):
+            authenticated = False
+            while not authenticated:
+                authenticated = self.refresh_state()
+                time.sleep(5)
+            return self.secret
+
+        def login(self):
+            url = urllib.parse.urljoin(
+                self.sdk.config.server_url, "/Users/AuthenticateWithQuickConnect"
+            )
+
+            # Build the initial header without a user specific deviceid
+            headers = {"Authorization": self.auth.header()}
+            payload = {"Secret": self.secret}
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            logged_in_user = api_objects.User(data.get("User"))
+
+            # Set the deviceid to be user specific
+            self.sdk.config.update_deviceid(logged_in_user.name)
+
+            # Log-In again to get new User-Bound Access Token
+            headers = {"Authorization": self.auth.header()}
+            payload = {"Secret": self.secret}
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            logged_in_user = api_objects.User(data.get("User"))
+
+            token = data.get("AccessToken")
+            if not token:
+                raise ValueError(
+                    "Authentication response did not contain an access token."
+                )
+
+            return token, logged_in_user
 
 
 # Features of the API
