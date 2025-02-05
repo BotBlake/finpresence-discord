@@ -67,12 +67,31 @@ def main():
     else:
         user = public_users[int(selection)]
         username = user.name
-        # ToDo: Get QuickConnect here
-        password = getpass.getpass(f"Password for {user.name}: ")
-        access_token, user = jellyfin.auth.login_user(
-            username=username, password=password
-        )
-        print(f'Logged in as "{user.name}"')
+        code = jellyfin.auth.quick_connect.initiate()
+        print(f"Use Quick Connect Code {code} and press enter")
+        password = getpass.getpass(f"or enter Password for {user.name}: ")
+        while True:
+            if password == "":
+                quick_connected = jellyfin.auth.quick_connect.refresh_state()
+                if quick_connected:
+                    access_token, user = jellyfin.auth.quick_connect.login()
+                    print()
+                    print(f'QuickConnect authorized as "{user.name}"')
+                    break
+                else:
+                    print()
+                    print(
+                        "QuickConnect not (yet) authorized. Try again and press enter"
+                    )
+                    password = getpass.getpass(f"or enter Password for {user.name}: ")
+            else:
+                access_token, user = jellyfin.auth.login_user(
+                    username=username, password=password
+                )
+                print()
+                print(f'Logged in as "{user.name}"')
+                break
+
         print(f"Last Login {user.last_login_date}")
 
     # --- 4. Open a WebSocket connection and wait for events ---
