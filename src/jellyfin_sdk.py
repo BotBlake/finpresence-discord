@@ -44,7 +44,7 @@ class Public:
         self.sdk = sdk
     
     def get_users(self):
-        url = urllib.parse.urljoin(self.sdk.server_url, "/Users/Public")
+        url = urllib.parse.urljoin(self.sdk.config.server_url, "/Users/Public")
         response = requests.get(url)
         if not response.ok:
             raise Exception(f"ERROR: Server returned {response.status_code}")
