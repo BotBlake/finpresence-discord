@@ -196,6 +196,7 @@ class SDK:
         self.auth = Auth(self)
         self.public = Public(self)
         self.user = self.User(self)
+        self.websocket = self.Websocket(self)
 
     class User:
         def __init__(self, sdk):
@@ -206,53 +207,59 @@ class SDK:
             response = requests.get(url, headers=headers)
             return [api_objects.User(user) for user in response.json()]
 
-            
-
-    async def open_websocket_connection(self, access_token: str):
-        """
-        Open a websocket connection to the Jellyfin server, subscribe to events,
-        and print received messages.
-        """
-        ws_url = self.config.ws_url
-
-        print("Connecting to WebSocket URL:", ws_url)
-
-        # Setup SSL context if needed (for wss:// connections)
-        ssl_context = None
-        if ws_url.startswith("wss://"):
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-        # Extra headers as a list of tuples (websockets accepts dicts as well)
-        extra_headers = [
-            ("Authorization", self.auth.header(token=access_token)),
-            ("User-Agent", f"{self.config.client}/{self.config.version}"),
-        ]
-
-        try:
-            async with websockets.connect(
-                ws_url, additional_headers=extra_headers, ssl=ssl_context
-            ) as ws:
-                print("WebSocket connection established!")
-
-                # Subscribe to an event (e.g. SessionsStart)
+    class Websocket:
+        def __init__(self, sdk):
+            self.sdk = sdk
+            self.subscriptions = []
+        def announce_subscriptions(self, subscribtion_events):
+            subscribtion_messages = []
+            for subscription in subscribtion_events:
                 subscribe_message = {
-                    "MessageType": "SessionsStart",
+                    "MessageType": subscription,
                     "Data": "0,1000",  # 0ms initial delay, updates every 1000ms
                 }
-                await ws.send(json.dumps(subscribe_message))
-                print("Subscribed to Sessions events.")
+                subscribtion_messages.append(subscribe_message)
+            self.subscribtions = subscribtion_messages
+        async def open(self, access_token: str):
+            """
+            Open a websocket connection to the Jellyfin server, subscribe to events,
+            and print received messages.
+            """
+            ws_url = self.sdk.config.ws_url
 
-                # Listen for incoming messages indefinitely.
-                while True:
-                    try:
-                        message = await ws.recv()
-                        if message is None:
+            print("Connecting to WebSocket URL:", ws_url)
+
+            # Setup SSL context if needed (for wss:// connections)
+            ssl_context = None
+            if ws_url.startswith("wss://"):
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+            # Extra headers as a list of tuples (websockets accepts dicts as well)
+            extra_headers = [
+                ("Authorization", self.sdk.auth.header(token=access_token)),
+                ("User-Agent", f"{self.sdk.config.client}/{self.sdk.config.version}"),
+            ]
+
+            try:
+                async with websockets.connect(
+                    ws_url, additional_headers=extra_headers, ssl=ssl_context
+                ) as ws:
+                    print("WebSocket connection established!")
+                    
+                    for subscribe_message in self.subscribtions:
+                        await ws.send(json.dumps(subscribe_message))
+
+                    # Listen for incoming messages indefinitely.
+                    while True:
+                        try:
+                            message = await ws.recv()
+                            if message is None:
+                                break
+                            print("Received:", message)
+                        except websockets.ConnectionClosed:
+                            print("WebSocket connection closed.")
                             break
-                        print("Received:", message)
-                    except websockets.ConnectionClosed:
-                        print("WebSocket connection closed.")
-                        break
-        except Exception as e:
-            print("Error with WebSocket connection:", e)
+            except Exception as e:
+                print("Error with WebSocket connection:", e)

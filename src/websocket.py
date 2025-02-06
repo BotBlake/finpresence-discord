@@ -5,7 +5,7 @@ import jellyfin_sdk
 from util import Style, styled, get_input
 
 
-def main():
+async def main():
     # --- Configuration ---
     server_url = input("Enter your Server URL: ")
     client = "BlakeFlix"
@@ -105,9 +105,11 @@ def main():
     # --- 4. Open a WebSocket connection and wait for events ---
     # Since websockets uses asyncio, we need to run our async function.
     print()
+    input("Press Enter to connect ws")
     print("Starting Websocket Service...")
-    asyncio.run(jellyfin.open_websocket_connection(access_token))
+    jellyfin.websocket.announce_subscriptions([])
+    await jellyfin.websocket.open(access_token=access_token)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
